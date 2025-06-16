@@ -56,15 +56,34 @@ exports.registerUser = async (req, res) => {
 exports.loginUser = (req, res) => {
   const { email, password } = req.body;
 
-  db.query("SELECT * FROM usuario WHERE correo = ?", [email], async (err, rows) => {
+  db.query("SELECT * FROM usuario WHERE email = ?", [email], (err, rows) => {
     if (err) return res.status(500).json({ error: err });
-    if (rows.length === 0) return res.status(401).json({ message: "Credenciales inválidas" });
+
+    if (rows.length === 0)
+      return res.status(401).json({ message: "Credenciales inválidas" });
 
     const user = rows[0];
-    const match = await bcrypt.compare(password, user.contrasena);
 
-    if (!match) return res.status(401).json({ message: "Credenciales inválidas" });
+    if (user["contraseña"] !== password) {
+      return res.status(401).json({ message: "Credenciales inválidas" });
+    }
 
-    res.status(200).json({ message: "Inicio de sesión exitoso", user });
+    // Asegúrate de que estos campos existen y son correctos
+    const userResponse = {
+      id: user.id_usuario,
+      tipo_usuario: user.tipo_usuario,
+      nombre: user.nombre,
+      correo: user.email
+      // puedes incluir más campos si lo deseas
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Inicio de sesión exitoso",
+      user: userResponse
+    });
   });
 };
+
+
+
