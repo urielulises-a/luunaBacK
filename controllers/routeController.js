@@ -1,15 +1,15 @@
-const db = require("../config/db");
+const routeService = require("../services/routeService");
 const axios = require("axios");
 
-// Obtener todas las rutas desde la base de datos
-exports.getRoutes = (req, res) => {
-  db.query("SELECT * FROM ruta", (err, results) => {
-    if (err) return res.status(500).json({ error: err });
-    res.json(results);
-  });
+exports.getRoutes = async (req, res) => {
+  try {
+    const routes = await routeService.getRoutes();
+    res.json(routes);
+  } catch (err) {
+    res.status(500).json({ error: err });
+  }
 };
 
-// Calcular ruta entre dos ubicaciones usando API externa
 exports.calculateRoute = async (req, res) => {
   const { origin, destination } = req.query;
 
