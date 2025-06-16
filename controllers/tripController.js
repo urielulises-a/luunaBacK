@@ -6,7 +6,7 @@ exports.getTrips = (req, res) => {
     SELECT 
       v.id_viaje, v.id_conductor, v.estado, v.costo, 
       v.fecha_hora_inicio, v.fecha_hora_fin,
-      r.origen, r.destino, r.horario
+      r.coordenadas_inicio, r.coordenadas_fin, r.tiempo_estimado
     FROM viaje v
     JOIN ruta r ON v.id_ruta = r.id_ruta
   `;
