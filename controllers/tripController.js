@@ -1,3 +1,5 @@
+const db = require("../config/db");
+const { v4: uuidv4 } = require("uuid");
 const tripService = require("../services/tripService");
 
 exports.getTrips = async (req, res) => {
@@ -41,10 +43,11 @@ exports.findTrips = async (req, res) => {
     const [trips] = await db.query(`
       SELECT 
         v.id_viaje, v.id_conductor, v.costo, v.estado,
-        ST_X(r.coordenadas_inicio) AS lat_inicio,
-        ST_Y(r.coordenadas_inicio) AS lng_inicio,
-        ST_X(r.coordenadas_fin) AS lat_fin,
-        ST_Y(r.coordenadas_fin) AS lng_fin
+        -- Extraemos lat y lng de la cadena 'lng,lat'
+        CAST(SUBSTRING_INDEX(r.coordenadas_inicio, ',', -1) AS DECIMAL(10, 8)) AS lat_inicio,
+        CAST(SUBSTRING_INDEX(r.coordenadas_inicio, ',', 1) AS DECIMAL(11, 8)) AS lng_inicio,
+        CAST(SUBSTRING_INDEX(r.coordenadas_fin, ',', -1) AS DECIMAL(10, 8)) AS lat_fin,
+        CAST(SUBSTRING_INDEX(r.coordenadas_fin, ',', 1) AS DECIMAL(11, 8)) AS lng_fin
       FROM viaje v
       JOIN ruta r ON v.id_ruta = r.id_ruta
       WHERE v.estado = 'esperando'
@@ -60,6 +63,7 @@ exports.findTrips = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // --- Agregar pasajero a viaje ---
 exports.addUserToTrip = async (req, res) => {
