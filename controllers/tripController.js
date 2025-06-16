@@ -2,6 +2,24 @@ const db = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
 const tripService = require("../services/tripService");
 
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radio de la Tierra en km
+  const toRad = deg => deg * Math.PI / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
+
 exports.getTrips = async (req, res) => {
   try {
     const trips = await tripService.getTrips();
@@ -38,7 +56,7 @@ exports.updateTripStatus = async (req, res) => {
 // --- Buscar viajes cercanos (por coordenadas aproximadas) ---
 exports.findTrips = async (req, res) => {
   try {
-    const { origin, maxDistanceKm = 5 } = req.body;
+    const { origin, maxDistanceKm = 1 } = req.body;
 
     const [trips] = await db.query(`
       SELECT 
@@ -63,6 +81,7 @@ exports.findTrips = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 
 // --- Agregar pasajero a viaje ---
