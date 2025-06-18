@@ -10,6 +10,7 @@ const db = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  timezone: 'Z', // <- Esto hace que los DATETIME se devuelvan tal cual, sin conversión
 });
 
 module.exports = db;
