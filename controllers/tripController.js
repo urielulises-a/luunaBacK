@@ -29,6 +29,26 @@ exports.getTrips = async (req, res) => {
   }
 };
 
+exports.findTrips = async (req, res) => {
+  try {
+    const { origin, destination, maxDistanceKm } = req.body;
+
+    if (!origin || origin.lat == null || origin.lng == null) {
+      return res.status(400).json({ error: "Faltan coordenadas de origen" });
+    }
+    if (!destination || destination.lat == null || destination.lng == null) {
+      return res.status(400).json({ error: "Faltan coordenadas de destino" });
+    }
+
+    const trips = await tripService.findTripsNearby(origin, destination, maxDistanceKm || 1);
+    res.json(trips);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
 exports.addTrip = async (req, res) => {
   try {
     const tripId = await tripService.addTrip(req.body);
@@ -54,33 +74,33 @@ exports.updateTripStatus = async (req, res) => {
 };
 
 // --- Buscar viajes cercanos (por coordenadas aproximadas) ---
-exports.findTrips = async (req, res) => {
-  try {
-    const { origin, maxDistanceKm = 1 } = req.body;
+// exports.findTrips = async (req, res) => {
+//   try {
+//     const { origin, maxDistanceKm = 1 } = req.body;
 
-    const [trips] = await db.query(`
-      SELECT 
-        v.id_viaje, v.id_conductor, v.costo, v.estado,
-        -- Extraemos lat y lng de la cadena 'lng,lat'
-        CAST(SUBSTRING_INDEX(r.coordenadas_inicio, ',', -1) AS DECIMAL(10, 8)) AS lat_inicio,
-        CAST(SUBSTRING_INDEX(r.coordenadas_inicio, ',', 1) AS DECIMAL(11, 8)) AS lng_inicio,
-        CAST(SUBSTRING_INDEX(r.coordenadas_fin, ',', -1) AS DECIMAL(10, 8)) AS lat_fin,
-        CAST(SUBSTRING_INDEX(r.coordenadas_fin, ',', 1) AS DECIMAL(11, 8)) AS lng_fin
-      FROM viaje v
-      JOIN ruta r ON v.id_ruta = r.id_ruta
-      WHERE v.estado = 'esperando'
-    `);
+//     const [trips] = await db.query(`
+//       SELECT 
+//         v.id_viaje, v.id_conductor, v.costo, v.estado,
+//         -- Extraemos lat y lng de la cadena 'lng,lat'
+//         CAST(SUBSTRING_INDEX(r.coordenadas_inicio, ',', -1) AS DECIMAL(10, 8)) AS lat_inicio,
+//         CAST(SUBSTRING_INDEX(r.coordenadas_inicio, ',', 1) AS DECIMAL(11, 8)) AS lng_inicio,
+//         CAST(SUBSTRING_INDEX(r.coordenadas_fin, ',', -1) AS DECIMAL(10, 8)) AS lat_fin,
+//         CAST(SUBSTRING_INDEX(r.coordenadas_fin, ',', 1) AS DECIMAL(11, 8)) AS lng_fin
+//       FROM viaje v
+//       JOIN ruta r ON v.id_ruta = r.id_ruta
+//       WHERE v.estado = 'esperando'
+//     `);
 
-    const nearby = trips.filter(t => {
-      const dist = calculateDistance(origin.lat, origin.lng, t.lat_inicio, t.lng_inicio);
-      return dist <= maxDistanceKm;
-    });
+//     const nearby = trips.filter(t => {
+//       const dist = calculateDistance(origin.lat, origin.lng, t.lat_inicio, t.lng_inicio);
+//       return dist <= maxDistanceKm;
+//     });
 
-    res.json(nearby);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+//     res.json(nearby);
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
 
 
 
