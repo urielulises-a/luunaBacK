@@ -1,52 +1,107 @@
 const db = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
 
-function getTrips() {
-  return new Promise((resolve, reject) => {
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radio de la Tierra en km
+  const toRad = (deg) => deg * (Math.PI / 180);
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distancia en km
+}
+
+function estimateTime(distanceKm, speedKmh = 40) {
+  const hours = distanceKm / speedKmh;
+  const totalSeconds = Math.round(hours * 3600);
+  const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+  const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+  const s = (totalSeconds % 60).toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function formatDateToMySQLWithOffset(isoDateStr, offsetHours = -6) {
+  const date = new Date(isoDateStr);
+
+  // Obtener la hora UTC y restarle el offset en horas
+  const utcHours = date.getUTCHours() + offsetHours;
+
+  // Construimos la nueva fecha ajustada en UTC, con el offset aplicado
+  date.setUTCHours(utcHours);
+
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ` +
+         `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+
+
+
+
+async function getTrips() {
     const query = `
       SELECT 
         v.id_viaje, v.id_conductor, v.estado, v.costo, 
         v.fecha_hora_inicio, v.fecha_hora_fin,
-        r.origen, r.destino, r.horario
+        r.coordenadas_inicio, r.coordenadas_fin, r.tiempo_estimado, r.distancia
       FROM viaje v
       JOIN ruta r ON v.id_ruta = r.id_ruta
     `;
-    db.query(query, (err, rows) => {
-      if (err) return reject(err);
-      resolve(rows);
-    });
-  });
+      try {
+    const [rows, fields] = await db.query(query);
+    return rows;
+  } catch (err) {
+    throw err;
+  }
 }
 
-function addTrip({ driverId, origin, destination, schedule, fare }) {
+async function addTrip({ driverId, origin, destination, schedule, fare }) {
   const routeId = uuidv4();
   const tripId = uuidv4();
+    // Convertir coordenadas a string "lng,lat"
+  const coordInicio = `${origin.lng},${origin.lat}`;
+  const coordFin = `${destination.lng},${destination.lat}`;
 
-  return new Promise((resolve, reject) => {
-    const insertRoute = "INSERT INTO ruta (id_ruta, origen, destino, horario) VALUES (?, ?, ?, ?)";
-    db.query(insertRoute, [routeId, origin, destination, schedule], (err) => {
-      if (err) return reject(err);
+  const distancia = haversineDistance(origin.lat, origin.lng, destination.lat, destination.lng).toFixed(2);
+  const tiempo_estimado = estimateTime(distancia);
 
-      const insertTrip = `
-        INSERT INTO viaje (id_viaje, id_conductor, id_ruta, estado, costo, fecha_hora_inicio)
-        VALUES (?, ?, ?, 'esperando', ?, ?)
-      `;
-      db.query(insertTrip, [tripId, driverId, routeId, fare, schedule], (err) => {
-        if (err) return reject(err);
-        resolve(tripId);
-      });
-    });
-  });
+  const mysqlSchedule = formatDateToMySQLWithOffset(schedule, -6); // UTC-6 para México
+
+
+  try {
+    const insertRoute = `
+      INSERT INTO ruta (id_ruta, coordenadas_inicio, coordenadas_fin, distancia, tiempo_estimado)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    await db.query(insertRoute, [routeId, coordInicio, coordFin, distancia, tiempo_estimado]);
+
+
+    const insertTrip = `
+      INSERT INTO viaje (id_viaje, id_conductor, id_ruta, estado, costo, fecha_hora_inicio)
+      VALUES (?, ?, ?, 'esperando', ?, ?)
+    `;
+    await db.query(insertTrip, [tripId, driverId, routeId, fare, mysqlSchedule]);
+
+    return tripId;
+  } catch (err) {
+    throw err;
+  }
 }
 
-function updateTripStatus(tripId, status) {
-  return new Promise((resolve, reject) => {
+async function updateTripStatus(tripId, status) {
+  try {
     const query = "UPDATE viaje SET estado = ? WHERE id_viaje = ?";
-    db.query(query, [status, tripId], (err, result) => {
-      if (err) return reject(err);
-      resolve(result.affectedRows > 0);
-    });
-  });
+    const [result] = await db.query(query, [status, tripId]);
+    return result.affectedRows > 0;
+  } catch (err) {
+    throw err;
+  }
 }
 
 module.exports = { getTrips, addTrip, updateTripStatus };
